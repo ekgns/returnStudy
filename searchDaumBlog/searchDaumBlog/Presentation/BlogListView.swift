@@ -20,8 +20,7 @@ class BlogListView: UITableView {
         )
     )
     
-    // MainViewController -> BlogLIstView
-    let cellData = PublishSubject<[BlogListCellData]>()
+   
     
     override init(frame: CGRect, style: UITableView.Style) {
         super.init(frame: frame, style: style)
