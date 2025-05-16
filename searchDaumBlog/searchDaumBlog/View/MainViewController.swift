@@ -14,7 +14,7 @@ class MainViewController: UIViewController {
     
     let listView = BlogListView()
     let searchBar = SearchBar()
-    let alertActionTapped = PublishRelay<AlertAction>()
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,7 +24,7 @@ class MainViewController: UIViewController {
     override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
         super .init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
         
-        bind()
+        
         attribute()
         layout()
     }
@@ -33,96 +33,17 @@ class MainViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
     
-    private func bind() {
-        let blogResult = searchBar.shouldLoadResult
-            .flatMapLatest { query in
-                SearchBlogNetwork().searchBlog(query: query)
-            }
-            .share()
+    func bind(_ viewModel: MainViewModel) {
+        listView.bind(viewModel.blogListViewModel)
+        searchBar.bind(viewModel.searchBarViewModel)
         
-        let blogValue = blogResult
-            .compactMap { data -> DKBlog? in
-                guard case .success(let value) = data  else {
-                    return nil
-                }
-                return value
-            }
-        
-        let blogError = blogResult
-            .compactMap { data -> String? in
-                guard case .failure(let error) = data else {
-                    return nil
-                }
-                return error.localizedDescription
-            }
-        
-        // 네트워크를 통해 가져온 값을 cell Data로 변환
-        let cellData = blogValue
-            .map { blog -> [BlogListCellData] in
-                return blog.documents
-                    .map { doc in
-                        let thumnailURL = URL(string: doc.thumbnail ?? "")
-                        return BlogListCellData(thumbnailURL: thumnailURL, name: doc.name, title: doc.title, datetime: doc.datetime)
-                    }
-            }
-        
-        // FilterView를 선택했을 때 나오는 alertSheet를 선택했을 때의 sortedType
-        let sortedType = alertActionTapped
-            .filter {
-                switch $0 {
-                case .title, .datetime:
-                    return true
-                default:
-                    return false
-                }
-            }
-            .startWith(.title)
-        
-        // MainViewController -> ListView로 전달
-        Observable
-            .combineLatest(
-                sortedType,
-                cellData
-            ) { type, data -> [BlogListCellData] in
-                switch type {
-                case .title:
-                    return data.sorted { $0.title ?? "" < $1.title ?? "" }
-                case .datetime:
-                    return data.sorted { $0.datetime ?? Date() < $1.datetime ?? Date() }
-                default:
-                    return data
-                }
-            }
-            .bind(to: listView.cellData)
-            .disposed(by: disposeBag)
-        
-        let alertSheetForSortiong = listView.headerView.sortButtonTapped
-            .map { _ -> Alert in
-                return (title: nil, message: nil, actions: [.title, .datetime, .cancel], style: .actionSheet)
-            }
-        
-        let alertForErrorMessage = blogError
-            .map { message -> Alert in
-                return (
-                    title: "앗",
-                    message: "예상치 못한 오류가 발생했습니다. 잠시후 다시 시도해 주세요.\(message)",
-                    actions: [.confirm],
-                    style: .alert)
-            }
-        
-        Observable
-            .merge(
-                alertSheetForSortiong,
-                alertForErrorMessage
-            )
-            .asSignal(onErrorSignalWith: .empty())
+        viewModel.shouldPresentAlert
             .flatMap { alert -> Signal<AlertAction> in
                 let alertController = UIAlertController(title: alert.title, message: alert.message, preferredStyle: alert.style)
                 return self.presentAlerController(alertController, actions: alert.actions)
             }
-            .emit(to: alertActionTapped)
+            .emit(to: viewModel.alertActionTapped)
             .disposed(by: disposeBag)
-    
     }
     
     

@@ -33,6 +33,8 @@ class BlogListView: UITableView {
     }
     
     func bind(_ viewModel: BlogListViewModel) {
+        headerView.bind(viewModel.filterViewModel)
+        
         viewModel.cellData
             .drive(self.rx.items) { tv, row, data in
                 let index = IndexPath(row: row, section: 0)
